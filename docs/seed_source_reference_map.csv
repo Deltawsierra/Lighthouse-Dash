@@ -1,0 +1,11 @@
+code_set_nm,record_source_nm,source_reference_cd,source_reference_nm,standard_cd,mapping_notes
+geography,LEGACY_ADMIN,CA,CALIF,US-CA,Legacy admin uses bare two-letter state code
+geography,LEGACY_ADMIN,NY,NEW YORK,US-NY,Legacy admin uses bare two-letter state code
+geography,LEGACY_ADMIN,TX,TEXAS,US-TX,Legacy admin uses bare two-letter state code
+geography,POLICY_SYS,06,California,US-CA,Policy system uses FIPS-style numeric codes
+geography,POLICY_SYS,36,New York,US-NY,Policy system uses FIPS-style numeric codes
+geography,POLICY_SYS,48,Texas,US-TX,Policy system uses FIPS-style numeric codes
+office,LEGACY_ADMIN,01,RICHMOND HO,OFF-RIC,Legacy admin uses numeric office ids
+office,LEGACY_ADMIN,02,LYNCHBURG OPS,OFF-LYN,Legacy admin uses numeric office ids
+situs_type,POLICY_SYS,I,Issue,ISSUE,Single-character situs indicator
+situs_type,POLICY_SYS,R,Residence,RESIDENCE,Single-character situs indicator

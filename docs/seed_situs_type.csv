@@ -1,0 +1,5 @@
+code_set_nm,situs_type_cd,situs_type_nm,situs_type_desc
+situs_type,ISSUE,Issue State,Jurisdiction where the policy was issued
+situs_type,RESIDENCE,Residence State,Jurisdiction where the insured resides
+situs_type,PROPERTY,Property Location,Jurisdiction where the covered property is located
+situs_type,GROUP,Group Situs,Jurisdiction governing the group contract

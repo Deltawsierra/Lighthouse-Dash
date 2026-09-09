@@ -1,0 +1,6 @@
+code_set_nm,office_cd,office_nm,office_desc
+office,OFF-RIC,Richmond,Home office
+office,OFF-LYN,Lynchburg,Operations office
+office,OFF-STA,Stamford,Regional office
+office,OFF-RTP,Raleigh,Regional office
+office,OFF-REM,Remote,"Distributed staff, no physical site"

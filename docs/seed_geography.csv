@@ -1,0 +1,9 @@
+code_set_nm,geography_cd,geography_nm,geography_desc
+geography,US-CA,California,US state
+geography,US-FL,Florida,US state
+geography,US-NY,New York,US state
+geography,US-RI,Rhode Island,US state
+geography,US-TX,Texas,US state
+geography,US-VA,Virginia,US state
+geography,US-WA,Washington,US state
+geography,CA-ON,Ontario,Canadian province
