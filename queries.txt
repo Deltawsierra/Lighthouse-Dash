@@ -1,0 +1,14 @@
+SELECT 'lkp_geography' t, count(*) FROM reference.lkp_geography
+UNION ALL SELECT 'lkp_office', count(*) FROM reference.lkp_office
+UNION ALL SELECT 'lkp_situs_type', count(*) FROM reference.lkp_situs_type
+UNION ALL SELECT 'source_reference_map', count(*) FROM reference.source_reference_map
+UNION ALL SELECT 'hist_geography', count(*) FROM reference.hist_lkp_geography
+UNION ALL SELECT 'hist_office', count(*) FROM reference.hist_lkp_office
+UNION ALL SELECT 'hist_situs_type', count(*) FROM reference.hist_lkp_situs_type;
+
+SELECT m.record_source_nm, m.source_reference_cd, m.source_reference_nm,
+       g.geography_cd, g.geography_nm
+FROM reference.source_reference_map m
+LEFT JOIN reference.lkp_geography g ON g.lookup_hk = m.standard_lookup_hk
+WHERE m.code_set_nm = 'geography'
+ORDER BY m.record_source_nm, m.source_reference_cd;
