@@ -6,3 +6,6 @@ vite.config.ts.*
 *.tar.gz
 # Claude Code session state and agent worktrees
 .claude/
+
+# Runtime log directory written when engine code runs from this dir
+logs/
