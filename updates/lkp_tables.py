@@ -3,15 +3,19 @@ api/v1/middleware/lkp_tables.py
 
 Current-state lookup table registry.
 
-Single source of truth for which tables the API may expose. Only `lkp_*`
-tables are served. `hist_lkp_*` and `source_reference_map` are deliberately
-excluded: history is written by the write endpoints but never listed or read
-directly, and the crosswalk gets its own endpoints if it ever needs them.
+Single source of truth for which tables the API may expose. Only tables
+matching the lookup prefix are served. History tables and
+source_reference_map are deliberately excluded: history is written by the
+write endpoints but never listed or read directly, and the crosswalk gets
+its own endpoints if it ever needs them.
 
 Any route that takes a table name from the request MUST resolve it through
 `require_lkp_table()` before building SQL. Identifiers cannot be bound as
 parameters, so the allowlist -- not psycopg's quoting -- is what makes a
 caller-supplied name safe to use as an identifier.
+
+Naming conventions (prefixes, suffixes, key and audit columns) live on the
+Settings object rather than in this module; see Settings for the defaults.
 """
 
 from __future__ import annotations
@@ -26,22 +30,9 @@ from datetime import datetime, timezone
 from fastapi import HTTPException
 
 from api.v1.middleware.get_connection import get_connection_pool
+from api.v1.middleware.settings import get_settings
 
 logger = logging.getLogger(__name__)
-
-LKP_PREFIX = "lkp_"
-HIST_PREFIX = "hist_"
-
-KEY_COLUMN = "lookup_hk"
-
-# Columns every lookup table carries that are not business values.
-AUDIT_COLUMNS = frozenset({
-    "lookup_hk",
-    "modified_by_user_id",
-    "published_by_user_id",
-    "record_effective_dttm",
-    "code_set_nm",
-})
 
 _CACHE: dict[str, dict[str, "LkpTable"]] = {}
 _CACHE_TS: dict[str, float] = {}
@@ -53,43 +44,53 @@ _CACHE_LOCK = threading.Lock()
 class LkpTable:
     """One current-state lookup table and its conventional columns."""
 
-    table: str          # "lkp_geography"
-    code_set: str       # "geography"
-    code_col: str       # "geography_cd"
-    name_col: str       # "geography_nm"
-    desc_col: str       # "geography_desc"
+    name: str                         # "lkp_geography"
+    code_set: str                     # "geography"
+    primary_code: str                 # "geography_cd"
+    primary_decode: str               # "geography_nm"
+    primary_desc: str                 # "geography_desc"  -- see review note
     columns: tuple[str, ...]          # every column, in ordinal order
     column_types: dict[str, str]      # column name -> data_type
 
     @property
     def hist_table(self) -> str:
-        return HIST_PREFIX + self.table
+        return get_settings().HIST_PREFIX + self.name
+
+    @property
+    def key_column(self) -> str:
+        return get_settings().KEY_COLUMN
 
     @property
     def editable_columns(self) -> tuple[str, ...]:
         """Columns a steward may change.
 
-        The code and code set are excluded on purpose: lookup_hk is derived
-        from them, so changing either makes it a different concept. That is a
-        retire-and-create, not an update.
+        The code and code set are excluded on purpose: the lookup key is
+        derived from them, so changing either makes it a different concept.
+        That is a retire-and-create, not an update.
         """
-        return (self.name_col, self.desc_col)
+        return (self.primary_decode, self.primary_desc)
 
     @property
     def tracked_columns(self) -> tuple[str, ...]:
-        """Columns that feed record_values_hash, in hash order."""
-        return (self.name_col, self.desc_col)
+        """Columns that feed record_values_hash, in hash order.
+
+        Must stay aligned with ddl/load/load_hist_lkp_*.sql, which hashes
+        the decode and description together. Dropping either here produces
+        hashes that no longer match the SQL side.
+        """
+        return (self.primary_decode, self.primary_desc)
 
     def column_role(self, column: str) -> str:
-        if column == KEY_COLUMN:
+        settings = get_settings()
+        if column == settings.KEY_COLUMN:
             return "key"
-        if column == self.code_col:
+        if column == self.primary_code:
             return "code"
-        if column == self.name_col:
-            return "name"
-        if column == self.desc_col:
+        if column == self.primary_decode:
+            return "decode"
+        if column == self.primary_desc:
             return "description"
-        if column in AUDIT_COLUMNS:
+        if column in settings.AUDIT_COLUMNS:
             return "audit"
         return "other"
 
@@ -157,6 +158,8 @@ def record_values_hash(*tracked_values) -> str:
 # ---------------------------------------------------------------------------
 
 def _discover(schema: str) -> dict[str, LkpTable]:
+    settings = get_settings()
+
     query = """
         SELECT c.table_name, c.column_name, c.data_type
         FROM information_schema.columns c
@@ -190,18 +193,24 @@ def _discover(schema: str) -> dict[str, LkpTable]:
 
     registry: dict[str, LkpTable] = {}
     for table_name, columns in columns_by_table.items():
-        # Prefix match on "lkp_" excludes hist_lkp_* and source_reference_map.
+        # Prefix match excludes history tables and source_reference_map.
         # Filtering in Python rather than with LIKE avoids the escaping trap
         # where an unescaped underscore matches any single character.
-        if not table_name.startswith(LKP_PREFIX):
+        if not table_name.startswith(settings.LKP_PREFIX):
             continue
 
-        area = table_name[len(LKP_PREFIX):]
-        code_col = f"{area}_cd"
-        name_col = f"{area}_nm"
-        desc_col = f"{area}_desc"
+        area = table_name[len(settings.LKP_PREFIX):]
+        primary_code = f"{area}{settings.CODE_SUFFIX}"
+        primary_decode = f"{area}{settings.DECODE_SUFFIX}"
+        primary_desc = f"{area}{settings.DESC_SUFFIX}"
 
-        required = (code_col, name_col, desc_col, KEY_COLUMN, "code_set_nm")
+        required = (
+            primary_code,
+            primary_decode,
+            primary_desc,
+            settings.KEY_COLUMN,
+            "code_set_nm",
+        )
         missing = [c for c in required if c not in columns]
         if missing:
             logger.warning(
@@ -210,19 +219,19 @@ def _discover(schema: str) -> dict[str, LkpTable]:
             )
             continue
 
-        if HIST_PREFIX + table_name not in columns_by_table:
+        if settings.HIST_PREFIX + table_name not in columns_by_table:
             logger.warning(
                 "Skipping %s.%s: no matching history table %s%s",
-                schema, table_name, HIST_PREFIX, table_name,
+                schema, table_name, settings.HIST_PREFIX, table_name,
             )
             continue
 
         registry[table_name] = LkpTable(
-            table=table_name,
+            name=table_name,
             code_set=area,
-            code_col=code_col,
-            name_col=name_col,
-            desc_col=desc_col,
+            primary_code=primary_code,
+            primary_decode=primary_decode,
+            primary_desc=primary_desc,
             columns=tuple(columns),
             column_types=types_by_table[table_name],
         )
@@ -262,9 +271,9 @@ def get_lkp_tables(schema: str, *, force_refresh: bool = False) -> dict[str, Lkp
 def require_lkp_table(table_name: str, schema: str) -> LkpTable:
     """Resolve a caller-supplied table name, or 404.
 
-    404 rather than 403 on purpose: a 403 would confirm that
-    hist_lkp_geography exists, which is information a caller has no business
-    getting from a table they are not permitted to address at all.
+    404 rather than 403 on purpose: a 403 would confirm that a history table
+    exists, which is information a caller has no business getting from a
+    table they are not permitted to address at all.
     """
     table = get_lkp_tables(schema).get(table_name)
     if table is None:

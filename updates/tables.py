@@ -5,11 +5,7 @@ from api.v1.middleware import (
     get_settings,
     require_permission_or_403,
 )
-from api.v1.middleware.lkp_tables import (
-    KEY_COLUMN,
-    get_lkp_tables,
-    require_lkp_table,
-)
+from api.v1.middleware.lkp_tables import get_lkp_tables, require_lkp_table
 from fastapi import APIRouter
 from psycopg import sql
 import logging
@@ -20,11 +16,11 @@ router = APIRouter()
 
 
 # NOTE ON SCOPE
-# Only current-state lookup tables (lkp_*) are exposed here. hist_lkp_* and
+# Only current-state lookup tables are exposed here. History tables and
 # source_reference_map are excluded on purpose. The registry in
 # api/v1/middleware/lkp_tables.py owns that decision and its cache, so the
 # list endpoint and the detail endpoints can never disagree about which
-# tables exist.
+# tables exist. Naming conventions come from Settings.
 
 
 @router.get("/tables/list")
@@ -57,11 +53,11 @@ async def get_all_tables(request: Request, response: Response):
         # follow-up call per table. `tables` is kept as-is for compatibility.
         "datasets": [
             {
-                "table": registry[name].table,
-                "code_set": registry[name].code_set,
-                "key_column": KEY_COLUMN,
+                "table": registry[n].name,
+                "code_set": registry[n].code_set,
+                "key_column": registry[n].key_column,
             }
-            for name in table_names
+            for n in table_names
         ],
     }
 
@@ -78,7 +74,7 @@ def get_table(
 
     schema_name = get_schema()
 
-    # Allowlist first: an unknown or non-lkp_ table is a 404 before
+    # Allowlist first: an unknown or non-lookup table is a 404 before
     # permissions are consulted, so the response cannot be used to probe
     # which tables exist.
     lkp = require_lkp_table(table_name, schema_name)
@@ -114,15 +110,15 @@ def get_table(
                 query = sql.SQL("""
                     SELECT {cols}
                     FROM {schema}.{table}
-                    ORDER BY {code_col}
+                    ORDER BY {primary_code}
                     LIMIT %s OFFSET %s
                 """).format(
                     cols=sql.SQL(", ").join(
                         sql.Identifier(c) for c in lkp.columns
                     ),
                     schema=sql.Identifier(schema_name),
-                    table=sql.Identifier(lkp.table),
-                    code_col=sql.Identifier(lkp.code_col),
+                    table=sql.Identifier(lkp.name),
+                    primary_code=sql.Identifier(lkp.primary_code),
                 )
 
                 cursor.execute(query, (limit, offset))
@@ -138,7 +134,7 @@ def get_table(
                     # Lets the frontend render and edit any lookup table
                     # without hardcoding per-area column names.
                     "code_set": lkp.code_set,
-                    "key_column": KEY_COLUMN,
+                    "key_column": lkp.key_column,
                     "columns": lkp.describe_columns(),
                 }
     except HTTPException:
@@ -200,7 +196,7 @@ def get_table_metadata(
                     FROM {schema}.{table}
                 """).format(
                     schema=sql.Identifier(schema_name),
-                    table=sql.Identifier(lkp.table),
+                    table=sql.Identifier(lkp.name),
                 )
 
                 cursor.execute(rowcount_query)
@@ -210,7 +206,7 @@ def get_table_metadata(
                 return {
                     "table": table_path,
                     "code_set": lkp.code_set,
-                    "key_column": KEY_COLUMN,
+                    "key_column": lkp.key_column,
                     "total_rows": total_rows,
                     "column_count": len(columns),
                     "columns": columns,
