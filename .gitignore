@@ -9,3 +9,6 @@ vite.config.ts.*
 
 # Runtime log directory written when engine code runs from this dir
 logs/
+
+# Runtime SQLite database written when athena-engine code runs from this dir
+engine_data.db
