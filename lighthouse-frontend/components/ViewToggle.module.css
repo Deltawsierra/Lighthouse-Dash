@@ -1,0 +1,233 @@
+/*
+ * ViewToggle.module.css
+ *
+ * Cassette-transport keys. The mechanical read comes from four things working
+ * together -- change one and it stops feeling like a button and starts feeling
+ * like a div:
+ *
+ *   1. The key's "side wall" is a box-shadow with ZERO blur, offset downward by
+ *      exactly --vt-travel. That hard edge is what reads as moulded plastic.
+ *      Blur it and the key turns into a floating card.
+ *   2. Pressing translates the cap down by exactly --vt-travel while collapsing
+ *      that wall to 0, so the face lands flush with where the wall's base was.
+ *      The two numbers must match or the key appears to sink through the deck.
+ *   3. The face gradient inverts: highlight on top when up, shadow on top when
+ *      down. That single flip does most of the work.
+ *   4. 80ms ease-out, no bounce. Real transport keys snap; they don't spring.
+ *      Anything over ~120ms reads as soft-touch rather than mechanical.
+ *
+ * The housing reserves the travel distance as padding, so nothing in the
+ * sidebar shifts when a key goes down.
+ */
+
+.housing {
+  /* ---- Tunables ------------------------------------------------------- */
+  --vt-travel: 3px;          /* key throw; see notes 1 and 2 above */
+  --vt-snap: 80ms;           /* see note 4 */
+  --vt-radius: 5px;
+
+  --vt-well: #9aa0a8;        /* recessed deck the keys sit in */
+  --vt-cap: #e9ebee;         /* key face, at rest */
+  --vt-cap-down: #cfd3d8;    /* key face, latched */
+  --vt-ink: #24272c;
+  --vt-ink-dim: #686d75;
+  --vt-led: #d84a3a;
+  --vt-focus: #2d6fd8;
+  /* --------------------------------------------------------------------- */
+
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: 1fr;
+  gap: 5px;
+
+  padding: 5px;
+  border-radius: 8px;
+
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--vt-well) 86%, black),
+      var(--vt-well)
+    );
+
+  /* Inset shadow carves the well; the bottom highlight is the lip of the
+     chassis catching light. */
+  box-shadow:
+    inset 0 2px 5px rgba(0, 0, 0, 0.4),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.18),
+    0 1px 0 rgba(255, 255, 255, 0.45);
+}
+
+.key {
+  position: relative;
+  display: block;
+  cursor: pointer;
+  /* Reserve the throw so the housing keeps its height through the press. */
+  padding-bottom: var(--vt-travel);
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Visually hidden but still focusable and still the thing being clicked --
+   the <label> wrapper forwards the click, so the real input stays in the
+   accessibility tree and in the tab order. */
+.input {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.cap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+
+  padding: 7px 6px 6px;
+  border-radius: var(--vt-radius);
+
+  background: linear-gradient(
+    180deg,
+    #ffffff 0%,
+    var(--vt-cap) 40%,
+    color-mix(in srgb, var(--vt-cap) 88%, black) 100%
+  );
+  color: var(--vt-ink-dim);
+
+  /* Hard side wall + the shadow it casts into the well. */
+  box-shadow:
+    0 var(--vt-travel) 0 color-mix(in srgb, var(--vt-cap) 52%, black),
+    0 calc(var(--vt-travel) + 1px) 3px rgba(0, 0, 0, 0.38);
+
+  transform: translateY(0);
+  transition:
+    transform var(--vt-snap) ease-out,
+    box-shadow var(--vt-snap) ease-out,
+    background var(--vt-snap) ease-out,
+    color var(--vt-snap) ease-out;
+}
+
+/* Finger down, before release -- the key follows immediately. */
+.key:active .cap {
+  transform: translateY(var(--vt-travel));
+  box-shadow:
+    0 0 0 color-mix(in srgb, var(--vt-cap) 52%, black),
+    0 0 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Latched. The browser releases the other key for us. */
+.input:checked + .cap {
+  transform: translateY(var(--vt-travel));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--vt-cap-down) 90%, black) 0%,
+    var(--vt-cap-down) 70%,
+    color-mix(in srgb, var(--vt-cap-down) 96%, white) 100%
+  );
+  color: var(--vt-ink);
+  box-shadow:
+    0 0 0 color-mix(in srgb, var(--vt-cap) 52%, black),
+    inset 0 2px 3px rgba(0, 0, 0, 0.28),
+    inset 0 -1px 0 rgba(255, 255, 255, 0.5);
+}
+
+.input:focus-visible + .cap {
+  outline: 2px solid var(--vt-focus);
+  outline-offset: 2px;
+}
+
+/* Slight lift on hover, but only on a key that isn't already down. */
+@media (hover: hover) {
+  .key:hover .input:not(:checked) + .cap {
+    background: linear-gradient(
+      180deg,
+      #ffffff 0%,
+      color-mix(in srgb, var(--vt-cap) 96%, white) 40%,
+      color-mix(in srgb, var(--vt-cap) 90%, black) 100%
+    );
+    color: var(--vt-ink);
+  }
+}
+
+/* ---- Key face contents ------------------------------------------------ */
+
+.led {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--vt-led) 28%, #4a4a4a);
+  box-shadow: inset 0 0 1px rgba(0, 0, 0, 0.6);
+  transition: background var(--vt-snap) ease-out, box-shadow var(--vt-snap) ease-out;
+}
+
+.input:checked + .cap .led {
+  background: var(--vt-led);
+  box-shadow:
+    0 0 4px color-mix(in srgb, var(--vt-led) 80%, transparent),
+    0 0 1px var(--vt-led);
+}
+
+.glyph {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.label {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  line-height: 1;
+  /* Engraved legend. */
+  text-shadow: 0 1px 0 rgba(255, 255, 255, 0.65);
+}
+
+/* ---- Dark theme -------------------------------------------------------- */
+
+@media (prefers-color-scheme: dark) {
+  .housing:not([data-theme="light"]) {
+    --vt-well: #2a2d33;
+    --vt-cap: #4a4f57;
+    --vt-cap-down: #383c43;
+    --vt-ink: #f2f4f7;
+    --vt-ink-dim: #a8aeb8;
+  }
+
+  .housing:not([data-theme="light"]) .label {
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+  }
+}
+
+/* Explicit hook, for apps that set the theme themselves rather than relying on
+   the OS. Put data-theme="dark" on the element or any ancestor. */
+[data-theme="dark"] .housing {
+  --vt-well: #2a2d33;
+  --vt-cap: #4a4f57;
+  --vt-cap-down: #383c43;
+  --vt-ink: #f2f4f7;
+  --vt-ink-dim: #a8aeb8;
+}
+
+[data-theme="dark"] .label {
+  text-shadow: 0 1px 0 rgba(0, 0, 0, 0.5);
+}
+
+/* ---- Reduced motion ---------------------------------------------------- */
+
+/* The position change stays -- it's the state indicator, not decoration.
+   Only the travel time goes. */
+@media (prefers-reduced-motion: reduce) {
+  .cap,
+  .led {
+    transition-duration: 1ms;
+  }
+}
