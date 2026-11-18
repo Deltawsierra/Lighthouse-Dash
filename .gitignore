@@ -4,3 +4,11 @@ dist
 server/public
 vite.config.ts.*
 *.tar.gz
+# Claude Code session state and agent worktrees
+.claude/
+
+# Runtime log directory written when engine code runs from this dir
+logs/
+
+# Runtime SQLite database written when athena-engine code runs from this dir
+engine_data.db*
